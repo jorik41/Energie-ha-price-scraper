@@ -1,0 +1,15 @@
+{
+  "domain": "engie_gas",
+  "name": "Engie Gas Sensor",
+  "version": "1.0.0",
+  "documentation": "https://github.com/yourusername/engie_gas",
+  "requirements": [
+    "pdfminer.six>=20201018",
+    "requests>=2.0.0"
+  ],
+  "dependencies": [],
+  "codeowners": [
+    "@yourusername"
+  ],
+  "config_flow": true
+}
