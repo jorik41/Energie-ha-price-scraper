@@ -1,0 +1,7 @@
+{
+  "name": "Engie Gas Sensor",
+  "content_in_root": false,
+  "domains": ["sensor"],
+  "country": ["be"],
+  "homeassistant": "2023.9.0"
+}
