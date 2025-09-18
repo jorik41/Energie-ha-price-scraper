@@ -41,7 +41,8 @@ def parse_pdf(url):
       - fluvius_zenne_dijle_vergoeding
       - energiebijdrage
       - verbruik_0_12000
-      - totaal  (berekend als maandelijkse_prijs + energiebijdrage + verbruik_0_12000)
+      - totaal  (berekend als maandelijkse_prijs + fluvius_zenne_dijle_afname +
+                 fluvius_zenne_dijle_vergoeding + energiebijdrage + verbruik_0_12000)
     """
     global _CACHE, _LAST_FETCH_ATTEMPT, _LAST_SUCCESS_MONTH
 
@@ -120,15 +121,24 @@ def parse_pdf(url):
         else:
             _LOGGER.error("Toeslagen-blok niet gevonden.")
 
-        # Bereken totaal als alle drie waarden beschikbaar zijn
-        if ("maandelijkse_prijs" in result and 
-            "energiebijdrage" in result and 
-            "verbruik_0_12000" in result):
-            result["totaal"] = (result["maandelijkse_prijs"] +
-                                result["energiebijdrage"] +
-                                result["verbruik_0_12000"])
+        # Bereken totaal als alle vereiste waarden beschikbaar zijn
+        required_keys = [
+            "maandelijkse_prijs",
+            "fluvius_zenne_dijle_afname",
+            "fluvius_zenne_dijle_vergoeding",
+            "energiebijdrage",
+            "verbruik_0_12000",
+        ]
+
+        missing_keys = [key for key in required_keys if key not in result]
+
+        if not missing_keys:
+            result["totaal"] = sum(result[key] for key in required_keys)
         else:
-            _LOGGER.error("Niet alle waarden beschikbaar voor totaal berekening.")
+            _LOGGER.error(
+                "Niet alle waarden beschikbaar voor totaal berekening. Ontbrekend: %s",
+                ", ".join(missing_keys),
+            )
 
         # Alleen bij een wijziging werken we de cache bij en noteren we dat de
         # huidige maand succesvol is opgehaald. Zo proberen we dagelijks opnieuw

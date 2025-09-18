@@ -16,7 +16,7 @@ The integration creates the following sensors:
 - FL Zenne-Dijle Vergoeding
 - Energiebijdrage
 - Verbruik 0-12kWh
-- Totaal (som van bovenstaande waarden)
+- Totaal (som van maandelijkse prijs, FL Zenne-Dijle afname en vergoeding, energiebijdrage en verbruik 0-12kWh)
 
 ## Update strategie
 
