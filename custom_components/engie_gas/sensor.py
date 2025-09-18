@@ -38,11 +38,11 @@ def parse_pdf(url):
     Geeft een dictionary terug met de volgende keys:
       - maandelijkse_prijs
       - fluvius_zenne_dijle_afname
-      - fluvius_zenne_dijle_vergoeding
+      - fluvius_zenne_dijle_vergoeding (jaarlijks bedrag, uitgesloten van totaal)
       - energiebijdrage
       - verbruik_0_12000
       - totaal  (berekend als maandelijkse_prijs + fluvius_zenne_dijle_afname +
-                 fluvius_zenne_dijle_vergoeding + energiebijdrage + verbruik_0_12000)
+                 energiebijdrage + verbruik_0_12000)
     """
     global _CACHE, _LAST_FETCH_ATTEMPT, _LAST_SUCCESS_MONTH
 
@@ -87,20 +87,50 @@ def parse_pdf(url):
         else:
             _LOGGER.error("Geen maandelijkse prijs gevonden.")
 
-        # FLUVIUS ZENNE-DIJLE: verwacht een regel als:
-        # FLUVIUS ZENNE-DIJLE 16,66 2,391 88,46 0,955 598,01 0,616 18,56 0,165
-        flz_match = re.search(
-            r'FLUVIUS ZENNE-DIJLE\s+[\d,]+\s+[\d,]+\s+[\d,]+\s+([\d,]+)\s+[\d,]+\s+[\d,]+\s+[\d,]+\s+([\d,]+)',
-            text)
-        if flz_match:
-            try:
-                result["fluvius_zenne_dijle_afname"] = float(flz_match.group(1).replace(',', '.'))
-                result["fluvius_zenne_dijle_vergoeding"] = float(flz_match.group(2).replace(',', '.'))
-            except ValueError:
-                _LOGGER.error("Kon de FLUVIUS ZENNE-DIJLE waarden niet omzetten: %s, %s",
-                              flz_match.group(1), flz_match.group(2))
+        # FLUVIUS ZENNE-DIJLE: de tabel vermeldt eerst alle netbeheerders en
+        # daarna per kolom de waarden (één per netbeheerder). We zoeken daarom
+        # naar het volledige blok met de acht FLUVIUS-netbeheerders en delen de
+        # daaropvolgende getallen in even grote stukken op.
+        flz_block = re.search(r'(FLUVIUS ANTWERPEN.*?)(?=Samenstelling)', text, re.S)
+        if flz_block:
+            block_text = flz_block.group(1)
+            netbeheerders = re.findall(r'FLUVIUS [A-Z-]+', block_text)
+            if netbeheerders:
+                try:
+                    zenne_index = netbeheerders.index("FLUVIUS ZENNE-DIJLE")
+                except ValueError:
+                    _LOGGER.error("FLUVIUS ZENNE-DIJLE niet gevonden tussen netbeheerders: %s", netbeheerders)
+                else:
+                    cijfers = [
+                        float(match.replace(',', '.'))
+                        for match in re.findall(r'\d+,\d+', block_text)
+                    ]
+                    kolom_grootte = len(netbeheerders)
+                    kolommen = [
+                        cijfers[i:i + kolom_grootte]
+                        for i in range(0, len(cijfers), kolom_grootte)
+                        if len(cijfers[i:i + kolom_grootte]) == kolom_grootte
+                    ]
+
+                    try:
+                        result["fluvius_zenne_dijle_afname"] = kolommen[3][zenne_index]
+                    except IndexError:
+                        _LOGGER.error(
+                            "Onvoldoende kolommen gevonden voor FLUVIUS-afname: %s",
+                            kolommen,
+                        )
+
+                    try:
+                        result["fluvius_zenne_dijle_vergoeding"] = kolommen[7][zenne_index]
+                    except IndexError:
+                        _LOGGER.error(
+                            "Onvoldoende kolommen gevonden voor FLUVIUS-vergoeding: %s",
+                            kolommen,
+                        )
+            else:
+                _LOGGER.error("Geen FLUVIUS-netbeheerders gevonden in het distributieblok.")
         else:
-            _LOGGER.error("Geen waarden voor FLUVIUS ZENNE-DIJLE gevonden.")
+            _LOGGER.error("Distributieblok met FLUVIUS-netbeheerders niet gevonden.")
 
         # Verwerk het toeslagen-blok: we zoeken naar het gedeelte na "Toeslagen (€cent/kWh)"
         toeslagen_match = re.search(r'Toeslagen\s*\(.*?\)(.*)', text, re.DOTALL)
@@ -125,7 +155,6 @@ def parse_pdf(url):
         required_keys = [
             "maandelijkse_prijs",
             "fluvius_zenne_dijle_afname",
-            "fluvius_zenne_dijle_vergoeding",
             "energiebijdrage",
             "verbruik_0_12000",
         ]
